@@ -1,54 +1,25 @@
-# Node modules
+# Node
 /node_modules
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 
-# Env files (VERY IMPORTANT)
+# Env
 .env
-.env.local
-.env.development
-.env.test
-.env.production
+.env.* 
 
-# Prisma
-/prisma/*.db
+# Prisma / generated
 .prisma
-.prisma/client
 prisma/dev.db
+
+# Build
+/dist
+/build
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
 
 # Logs
 logs
 *.log
-log.txt
-debug.log
-
-# Build outputs
-/dist
-/build
-/out
-
-# IDE / Editor folders
-.vscode/
-.idea/
-*.swp
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Cache
-.cache
-.nyc_output
-coverage
-
-# Temporary files
-tmp/
-temp/
-
-# Optional: If you're using TypeScript (future)
-*.tsbuildinfo
-
-# Optional: If you're using uploads
-/uploads
-public/uploads
