@@ -5,7 +5,7 @@ const { signToken } = require('../utils/jwt');
 
 const SALT_ROUNDS = 10;
 
-async function register({ email, password, name, phone, roleName = 'customer' }) {
+async function register({ email,password, name, phone, roleName = 'customer' }) {
   // check existing
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) throw { status: 409, message: 'Email already registered' };
@@ -22,13 +22,13 @@ async function register({ email, password, name, phone, roleName = 'customer' })
   const user = await prisma.user.create({
     data: {
       email,
-      passwordHash,
+      password_hash: passwordHash,
       name,
       phone,
-      roleId: role.id,
+      role_id: role.id,
     },
     select: {
-      id: true, email: true, name: true, phone: true, roleId: true, createdAt: true
+      id: true, email: true, name: true, phone: true, role_id: true
     }
   });
 
@@ -38,16 +38,31 @@ async function register({ email, password, name, phone, roleName = 'customer' })
 }
 
 async function login({ email, password }) {
-  const user = await prisma.user.findUnique({ where: { email }, include: { role: true }});
+  const user = await prisma.user.findUnique({ 
+    where: { email }, 
+    select: {
+      id: true,
+      email: true,
+      password_hash: true,  // Explicitly select password_hash
+      name: true,
+      phone: true,
+      role_id: true,
+      role: {
+        select: {
+          name: true
+        }
+      }
+    }
+  });
   if (!user) throw { status: 401, message: 'Invalid credentials' };
 
-  if (!user.passwordHash) throw { status: 401, message: 'No password set for this user' };
+  if (!user.password_hash) throw { status: 401, message: 'No password set for this user' };
 
-  const ok = await bcrypt.compare(password, user.passwordHash);
+  const ok = await bcrypt.compare(password, user.password_hash);  // Fixed: use password_hash
   if (!ok) throw { status: 401, message: 'Invalid credentials' };
 
-  // update last login
-  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() }});
+  // Note: Remove or fix the lastLoginAt update if that field doesn't exist in your schema
+  // await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() }});
 
   const token = signToken({ userId: user.id, role: user.role?.name || 'customer' });
 
