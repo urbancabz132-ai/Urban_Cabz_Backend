@@ -22,4 +22,53 @@ model user {
   role_id       Int?
   created_at    DateTime? @default(now()) @db.Timestamptz(6)
   role          role?     @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // relations
+  bookings      booking[]
+}
+
+// Ride booking made by a user (customer).
+model booking {
+  id              Int        @id @default(autoincrement())
+  user_id         Int
+
+  pickup_location String
+  drop_location   String
+
+  // Optional: scheduled time (for later bookings)
+  scheduled_at    DateTime?  @db.Timestamptz(6)
+
+  // Calculated values
+  distance_km     Float?
+  estimated_fare  Float?
+  total_amount    Float
+
+  // Booking lifecycle: PENDING_PAYMENT, PAID, CANCELLED, COMPLETED
+  status          String     @default("PENDING_PAYMENT")
+
+  created_at      DateTime?  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime?  @updatedAt @db.Timestamptz(6)
+
+  // relations
+  user            user       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  payments        payment[]
+}
+
+// Payment attempts/records for a booking (e.g. Stripe/Razorpay, etc.)
+model payment {
+  id              Int        @id @default(autoincrement())
+  booking_id      Int
+  amount          Float
+  currency        String      @default("INR")
+
+  // status example: CREATED, SUCCESS, FAILED, REFUNDED
+  status          String
+
+  provider        String      // e.g. "stripe", "razorpay", "cash"
+  provider_txn_id String?     @unique
+
+  created_at      DateTime?   @default(now()) @db.Timestamptz(6)
+
+  // relations
+  booking         booking     @relation(fields: [booking_id], references: [id], onDelete: Cascade)
 }

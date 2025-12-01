@@ -72,12 +72,12 @@ async function login({ email, password }) {
       }
     }
   });
-  if (!user) throw { status: 401, message: 'Invalid credentials' };
+  if (!user) throw { status: 401, message: 'Invalid Email' };
 
   if (!user.password_hash) throw { status: 401, message: 'No password set for this user' };
 
   const ok = await bcrypt.compare(password, user.password_hash);  // Fixed: use password_hash
-  if (!ok) throw { status: 401, message: 'Invalid credentials' };
+  if (!ok) throw { status: 401, message: 'Invalid Password' };
 
   // Note: Remove or fix the lastLoginAt update if that field doesn't exist in your schema
   // await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() }});
