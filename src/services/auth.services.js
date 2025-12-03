@@ -5,6 +5,25 @@ const { signToken } = require('../utils/jwt');
 
 const SALT_ROUNDS = 10;
 
+function normalizeIndianPhone(phone) {
+  if (!phone) return phone;
+  const digits = String(phone).replace(/\D/g, '');
+  if (!digits) return phone;
+  // If user entered 10-digit Indian mobile, prefix with +91
+  if (digits.length === 10) {
+    return `+91${digits}`;
+  }
+  // If user already included country code (e.g. 9181..., +91...), keep as is but ensure leading +
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return `+${digits}`;
+  }
+  // Fallback: if they already gave +..., just return original string
+  if (String(phone).trim().startsWith('+')) {
+    return phone.trim();
+  }
+  return phone;
+}
+
 function toPublicUser(user, roleName) {
   return {
     id: user.id,
@@ -28,13 +47,14 @@ async function register({ email,password, name, phone, roleName = 'customer' }) 
   }
 
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  const normalizedPhone = normalizeIndianPhone(phone);
 
   const user = await prisma.user.create({
     data: {
       email,
       password_hash: passwordHash,
       name,
-      phone,
+      phone: normalizedPhone,
       role_id: role.id,
     },
     select: {

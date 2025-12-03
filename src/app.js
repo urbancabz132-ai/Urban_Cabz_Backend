@@ -7,6 +7,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Simple request logger to debug API traffic
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 // API versioning prefix
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/bookings', bookingRoutes);

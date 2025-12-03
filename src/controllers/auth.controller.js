@@ -1,6 +1,7 @@
 // src/controllers/auth.controller.js
 const { validationResult } = require('express-validator');
 const authService = require('../services/auth.services');
+const passwordResetService = require('../services/password-reset.service');
 
 async function register(req, res) {
   try {
@@ -62,4 +63,47 @@ async function updateProfile(req, res) {
   }
 }
 
-module.exports = { register, login, getProfile, updateProfile };
+async function requestPasswordReset(req, res) {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+    const { email, phone } = req.body;
+    console.log('🔔 requestPasswordReset called with:', { email, phone });
+    const result = await passwordResetService.requestPasswordReset({ email, phone });
+    return res.json({
+      message: 'OTP sent to your WhatsApp number',
+      ...result,
+    });
+  } catch (err) {
+    console.error(err);
+    const status = err.status || 500;
+    const message = err.message || 'Internal server error';
+    return res.status(status).json({ message });
+  }
+}
+
+async function resetPasswordWithOtp(req, res) {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+    const { resetId, otp, newPassword } = req.body;
+    await passwordResetService.completePasswordReset({ resetId, otp, newPassword });
+    return res.json({ message: 'Password updated successfully' });
+  } catch (err) {
+    console.error(err);
+    const status = err.status || 500;
+    const message = err.message || 'Internal server error';
+    return res.status(status).json({ message });
+  }
+}
+
+module.exports = {
+  register,
+  login,
+  getProfile,
+  updateProfile,
+  requestPasswordReset,
+  resetPasswordWithOtp,
+};

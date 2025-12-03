@@ -39,4 +39,29 @@ router.put(
   authController.updateProfile
 );
 
+router.post(
+  '/password/forgot',
+  [
+    body('email').optional().isEmail().withMessage('Valid email required'),
+    body('phone').optional().isString().trim(),
+    body().custom((_, { req }) => {
+      if (!req.body.email && !req.body.phone) {
+        throw new Error('Provide email or phone to reset password');
+      }
+      return true;
+    }),
+  ],
+  authController.requestPasswordReset
+);
+
+router.post(
+  '/password/reset',
+  [
+    body('resetId').isInt().withMessage('resetId must be a number').toInt(),
+    body('otp').isLength({ min: 4 }).withMessage('OTP is required'),
+    body('newPassword').isLength({ min: 6 }).withMessage('Password min 6 chars'),
+  ],
+  authController.resetPasswordWithOtp
+);
+
 module.exports = router;

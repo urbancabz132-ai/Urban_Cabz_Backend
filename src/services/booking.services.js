@@ -146,11 +146,12 @@ async function updateBookingAfterPaymentSuccess({
     })
   ]);
 
-  // Return booking with updated payment
+  // Return booking with updated payment and user details (phone, name, etc.)
   const booking = await prisma.booking.findUnique({
     where: { id: payment.booking_id },
     include: {
-      payments: true
+      payments: true,
+      user: true
     }
   });
 

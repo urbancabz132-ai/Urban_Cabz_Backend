@@ -3,6 +3,7 @@ const { validationResult } = require('express-validator');
 const crypto = require('crypto');
 const { createOrder } = require('../services/payment.razorpay');
 const bookingService = require('../services/booking.services');
+const { sendBookingConfirmationWhatsApp } = require('../services/twilio.service');
 
 // POST /api/v1/payments/create-order
 async function createRazorpayOrder(req, res) {
@@ -91,9 +92,25 @@ async function verifyPaymentAndCreateBooking(req, res) {
       razorpayPaymentId: razorpay_payment_id
     });
 
-    return res.status(200).json({ 
+    // Fire-and-forget WhatsApp confirmation (do not block response if it fails)
+    try {
+      const userPhone = booking.user?.phone;
+      if (userPhone) {
+        // Ensure phone is in E.164 format (+91...) before using in production
+        sendBookingConfirmationWhatsApp({
+          toPhone: userPhone,
+          booking,
+        });
+      } else {
+        console.warn('Booking user has no phone number; skipping WhatsApp confirmation.');
+      }
+    } catch (notifyErr) {
+      console.error('Error scheduling WhatsApp confirmation:', notifyErr);
+    }
+
+    return res.status(200).json({
       message: 'Payment verified and booking confirmed',
-      booking 
+      booking
     });
   } catch (err) {
     console.error(err);
