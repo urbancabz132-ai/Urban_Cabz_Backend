@@ -68,7 +68,8 @@ async function createBookingWithPendingPayment({
   distanceKm,
   estimatedFare,
   totalAmount,
-  razorpayOrderId
+  razorpayOrderId,
+  paymentAmount // The actual amount being paid (can be partial)
 }) {
   if (!userId) throw { status: 400, message: 'userId is required' };
   if (!pickupLocation || !dropLocation) {
@@ -77,6 +78,10 @@ async function createBookingWithPendingPayment({
   if (!totalAmount) {
     throw { status: 400, message: 'totalAmount is required' };
   }
+
+  // paymentAmount defaults to totalAmount if not provided (full payment)
+  const actualPaymentAmount = paymentAmount || totalAmount;
+  const remainingAmount = Math.max(0, totalAmount - actualPaymentAmount);
 
   const booking = await prisma.booking.create({
     data: {
@@ -90,11 +95,12 @@ async function createBookingWithPendingPayment({
       status: 'PENDING_PAYMENT',
       payments: {
         create: {
-          amount: totalAmount,
+          amount: actualPaymentAmount, // The actual payment amount (could be partial)
           currency: 'INR',
           status: 'PENDING',
           provider: 'razorpay',
-          provider_txn_id: razorpayOrderId // Store order_id temporarily, will update with payment_id later
+          provider_txn_id: razorpayOrderId, // Store order_id temporarily, will update with payment_id later
+          remaining_amount: remainingAmount // Calculate remaining amount
         }
       }
     },
@@ -129,6 +135,9 @@ async function updateBookingAfterPaymentSuccess({
     throw { status: 404, message: 'Payment record not found' };
   }
 
+  // Check if payment is full or partial
+  const isFullPayment = payment.remaining_amount === 0 || payment.remaining_amount === null;
+  
   // Update payment and booking in transaction
   const [updatedPayment, updatedBooking] = await prisma.$transaction([
     prisma.payment.update({
@@ -141,7 +150,8 @@ async function updateBookingAfterPaymentSuccess({
     prisma.booking.update({
       where: { id: payment.booking_id },
       data: {
-        status: 'PAID'
+        // Only mark as PAID if it's a full payment, otherwise keep as PENDING_PAYMENT
+        status: isFullPayment ? 'PAID' : 'PENDING_PAYMENT'
       }
     })
   ]);
