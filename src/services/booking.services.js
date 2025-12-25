@@ -13,6 +13,7 @@ async function createBookingAfterPayment({
   distanceKm,
   estimatedFare,
   totalAmount,
+  carModel, // Pass car model
   payment: paymentPayload
 }) {
   if (!userId) throw { status: 400, message: 'userId is required' };
@@ -34,17 +35,18 @@ async function createBookingAfterPayment({
         distance_km: distanceKm || null,
         estimated_fare: estimatedFare || null,
         total_amount: totalAmount,
+        car_model: carModel || null, // Save car model
         status: 'PAID',
         payments: paymentPayload
           ? {
-              create: {
-                amount: paymentPayload.amount,
-                currency: paymentPayload.currency || 'INR',
-                status: paymentPayload.status || 'SUCCESS',
-                provider: paymentPayload.provider || 'unknown',
-                provider_txn_id: paymentPayload.providerTxnId || null
-              }
+            create: {
+              amount: paymentPayload.amount,
+              currency: paymentPayload.currency || 'INR',
+              status: paymentPayload.status || 'SUCCESS',
+              provider: paymentPayload.provider || 'unknown',
+              provider_txn_id: paymentPayload.providerTxnId || null
             }
+          }
           : undefined
       },
       include: {
@@ -68,15 +70,24 @@ async function createBookingWithPendingPayment({
   distanceKm,
   estimatedFare,
   totalAmount,
-  razorpayOrderId
+  carModel, // Pass car model
+  razorpayOrderId,
+  paymentAmount // The actual amount being paid (can be partial)
 }) {
   if (!userId) throw { status: 400, message: 'userId is required' };
   if (!pickupLocation || !dropLocation) {
     throw { status: 400, message: 'pickupLocation and dropLocation are required' };
   }
-  if (!totalAmount) {
+  if (totalAmount === undefined || totalAmount === null) {
     throw { status: 400, message: 'totalAmount is required' };
   }
+
+  // Strictly check for paymentAmount to allow 0 (though unlikely) but handle undefined/null as full payment
+  const actualPaymentAmount = (paymentAmount !== undefined && paymentAmount !== null)
+    ? paymentAmount
+    : totalAmount;
+
+  const remainingAmount = Math.max(0, totalAmount - actualPaymentAmount);
 
   const booking = await prisma.booking.create({
     data: {
@@ -87,14 +98,16 @@ async function createBookingWithPendingPayment({
       distance_km: distanceKm || null,
       estimated_fare: estimatedFare || null,
       total_amount: totalAmount,
+      car_model: carModel || null, // Save car model
       status: 'PENDING_PAYMENT',
       payments: {
         create: {
-          amount: totalAmount,
+          amount: actualPaymentAmount,
           currency: 'INR',
           status: 'PENDING',
           provider: 'razorpay',
-          provider_txn_id: razorpayOrderId // Store order_id temporarily, will update with payment_id later
+          provider_txn_id: razorpayOrderId,
+          remaining_amount: remainingAmount
         }
       }
     },
@@ -129,6 +142,9 @@ async function updateBookingAfterPaymentSuccess({
     throw { status: 404, message: 'Payment record not found' };
   }
 
+  // Check if payment is full or partial
+  const isFullPayment = payment.remaining_amount === 0 || payment.remaining_amount === null;
+
   // Update payment and booking in transaction
   const [updatedPayment, updatedBooking] = await prisma.$transaction([
     prisma.payment.update({
@@ -141,7 +157,8 @@ async function updateBookingAfterPaymentSuccess({
     prisma.booking.update({
       where: { id: payment.booking_id },
       data: {
-        status: 'PAID'
+        // Only mark as PAID if it's a full payment, otherwise keep as PENDING_PAYMENT
+        status: isFullPayment ? 'PAID' : 'PENDING_PAYMENT'
       }
     })
   ]);
@@ -174,5 +191,3 @@ module.exports = {
   updateBookingAfterPaymentSuccess,
   getMyBookings
 };
-
-

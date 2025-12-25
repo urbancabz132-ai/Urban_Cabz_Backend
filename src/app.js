@@ -2,6 +2,8 @@ const express = require('express');
 const authRoutes = require('./routes/auth.routes');
 const bookingRoutes = require('./routes/booking.routes');
 const paymentRoutes = require('./routes/payment.routes');
+const adminRoutes = require('./routes/admin.routes');
+const fleetRoutes = require('./routes/fleet.routes');
 const cors = require('cors');
 const app = express();
 app.use(cors());
@@ -17,6 +19,7 @@ app.use((req, res, next) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/bookings', bookingRoutes);
 app.use('/api/v1/payments', paymentRoutes);
+app.use('/api/v1/admin', adminRoutes);
 
 app.get('/health', (req, res) => res.send({ ok: true }));
 

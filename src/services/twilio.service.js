@@ -81,13 +81,13 @@ async function sendBookingConfirmationWhatsApp({ toPhone, booking }) {
 
     const whenText = scheduledAt
       ? scheduledAt.toLocaleString('en-IN', {
-          timeZone: 'Asia/Kolkata',
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
+        timeZone: 'Asia/Kolkata',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
       : 'ASAP';
 
     const totalAmount = booking.total_amount || 0;
@@ -193,9 +193,104 @@ async function sendPasswordResetOtpWhatsApp({ toPhone, otp, expiryMinutes = 5 })
   }
 }
 
+/**
+ * Send WhatsApp to customer with taxi and driver details.
+ */
+async function sendTaxiAssignmentWhatsApp({ toPhone, booking, assignment }) {
+  const cli = getClient();
+  if (!cli) return;
+
+  if (!TWILIO_WHATSAPP_FROM) {
+    console.warn('TWILIO_WHATSAPP_FROM not set; skipping WhatsApp send.');
+    return;
+  }
+
+  if (!toPhone) {
+    console.warn('No destination phone provided for WhatsApp taxi assignment.');
+    return;
+  }
+
+  try {
+    const lines = [
+      `*Urban Cabz Booking Confirmation* 🚖`,
+      `Booking ID: #${booking.id}`,
+      `Trip: ${booking.pickup_location} ➜ ${booking.drop_location}`,
+      `------------------`,
+      `Vehicle: ${assignment.cab_name} (${assignment.cab_number})`,
+      `Driver: ${assignment.driver_name} (${assignment.driver_number})`,
+      `------------------`,
+      `Thank you for choosing Urban Cabz!`,
+    ];
+
+    const body = lines.join('\n');
+    const to = formatWhatsappNumber(toPhone);
+    if (!to) return;
+
+    await cli.messages.create({
+      from: TWILIO_WHATSAPP_FROM,
+      to,
+      body,
+    });
+  } catch (err) {
+    console.error('Failed to send WhatsApp taxi assignment:', err);
+  }
+}
+
+/**
+ * Send WhatsApp to driver with trip details.
+ */
+async function sendDriverAssignmentWhatsApp({ toPhone, booking, assignment }) {
+  const cli = getClient();
+  if (!cli) return;
+
+  if (!TWILIO_WHATSAPP_FROM) {
+    console.warn('TWILIO_WHATSAPP_FROM not set; skipping WhatsApp send.');
+    return;
+  }
+
+  if (!toPhone) {
+    console.warn('No destination phone provided for WhatsApp driver assignment.');
+    return;
+  }
+
+  try {
+    // Calculate due amount
+    const total = booking.total_amount || 0;
+    const paid = (booking.payments || []).reduce((sum, p) =>
+      (p.status === 'SUCCESS' || p.status === 'PAID') ? sum + (p.amount || 0) : sum, 0
+    );
+    const due = Math.max(0, total - paid);
+
+    const lines = [
+      `*New Trip Assignment* 🚨`,
+      `Booking ID: #${booking.id}`,
+      `Customer: ${booking.user?.name} (${booking.user?.phone})`,
+      `From: ${booking.pickup_location}`,
+      `To: ${booking.drop_location}`,
+      `Fare to Collect: ₹${due}`,
+      `------------------`,
+      `Please contact the customer for pickup.`,
+    ];
+
+    const body = lines.join('\n');
+    const to = formatWhatsappNumber(toPhone);
+    if (!to) return;
+
+    await cli.messages.create({
+      from: TWILIO_WHATSAPP_FROM,
+      to,
+      body,
+    });
+  } catch (err) {
+    console.error('Failed to send WhatsApp driver assignment:', err);
+  }
+}
+
 module.exports = {
   sendBookingConfirmationWhatsApp,
   sendPasswordResetOtpWhatsApp,
+  sendTaxiAssignmentWhatsApp,
+  sendDriverAssignmentWhatsApp,
 };
 
 

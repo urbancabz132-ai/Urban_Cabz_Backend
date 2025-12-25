@@ -15,7 +15,7 @@ async function createRazorpayOrder(req, res) {
 
     const userId = req.user.id;
     const {
-      amount,
+      amount, // Payment amount (can be partial or full)
       currency = 'INR',
       // Booking details
       pickupLocation,
@@ -23,8 +23,18 @@ async function createRazorpayOrder(req, res) {
       scheduledAt,
       distanceKm,
       estimatedFare,
-      totalAmount
+      totalAmount, // Total booking amount
+      carModel // Extract carModel
     } = req.body;
+
+    console.log(`[Payment] Creating order for user ${userId}, amount: ${amount}, totalAmount: ${totalAmount}`);
+
+    // Validate: payment amount should not exceed total amount
+    if (amount > totalAmount) {
+      return res.status(400).json({
+        message: 'Payment amount cannot exceed total booking amount'
+      });
+    }
 
     // Create Razorpay order
     const order = await createOrder({
@@ -32,6 +42,8 @@ async function createRazorpayOrder(req, res) {
       currency,
       receipt: `user_${userId}_${Date.now()}`
     });
+
+    console.log(`[Payment] Razorpay order created: ${order.id}`);
 
     // Create booking with PENDING_PAYMENT status and payment with PENDING status
     const booking = await bookingService.createBookingWithPendingPayment({
@@ -42,8 +54,12 @@ async function createRazorpayOrder(req, res) {
       distanceKm,
       estimatedFare,
       totalAmount,
-      razorpayOrderId: order.id
+      carModel, // Pass carModel
+      razorpayOrderId: order.id,
+      paymentAmount: amount // Pass the actual payment amount (can be partial)
     });
+
+    console.log(`[Payment] Booking created with ID: ${booking.id}, Payment ID: ${booking.payments[0]?.id}`);
 
     return res.status(201).json({
       keyId: process.env.RAZORPAY_KEY_ID,
@@ -54,7 +70,7 @@ async function createRazorpayOrder(req, res) {
       paymentId: booking.payments[0]?.id
     });
   } catch (err) {
-    console.error(err);
+    console.error('[Payment] Error creating Razorpay order:', err);
     const status = err.status || 500;
     const message = err.message || 'Internal server error';
     return res.status(status).json({ message });
@@ -76,6 +92,8 @@ async function verifyPaymentAndCreateBooking(req, res) {
       razorpay_signature
     } = req.body;
 
+    console.log(`[Payment] Verifying payment - Order ID: ${razorpay_order_id}, Payment ID: ${razorpay_payment_id}`);
+
     const body = `${razorpay_order_id}|${razorpay_payment_id}`;
     const expectedSignature = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
@@ -83,6 +101,7 @@ async function verifyPaymentAndCreateBooking(req, res) {
       .digest('hex');
 
     if (expectedSignature !== razorpay_signature) {
+      console.error('[Payment] Invalid signature for payment:', razorpay_payment_id);
       return res.status(400).json({ message: 'Invalid payment signature' });
     }
 
@@ -91,6 +110,8 @@ async function verifyPaymentAndCreateBooking(req, res) {
       razorpayOrderId: razorpay_order_id,
       razorpayPaymentId: razorpay_payment_id
     });
+
+    console.log(`[Payment] Payment verified successfully - Booking ID: ${booking.id}`);
 
     // Fire-and-forget WhatsApp confirmation (do not block response if it fails)
     try {
@@ -113,7 +134,7 @@ async function verifyPaymentAndCreateBooking(req, res) {
       booking
     });
   } catch (err) {
-    console.error(err);
+    console.error('[Payment] Error verifying payment:', err);
     const status = err.status || 500;
     const message = err.message || 'Internal server error';
     return res.status(status).json({ message });
@@ -124,5 +145,3 @@ module.exports = {
   createRazorpayOrder,
   verifyPaymentAndCreateBooking
 };
-
-
